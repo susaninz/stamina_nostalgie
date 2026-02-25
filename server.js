@@ -58,6 +58,16 @@ async function initDB() {
   `);
   db.run('CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)');
   db.run('CREATE INDEX IF NOT EXISTS idx_sessions_speed ON sessions(speed DESC)');
+  db.run(`
+    CREATE TABLE IF NOT EXISTS bugs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      nickname TEXT,
+      message TEXT NOT NULL,
+      user_agent TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
   saveDB();
 }
 
@@ -320,6 +330,21 @@ app.get('/api/stats/leaderboard', (req, res) => {
     GROUP BY u.id ORDER BY best_speed DESC LIMIT 30
   `);
   res.json({ leaderboard: board });
+});
+
+// ==================== BUGS ====================
+app.post('/api/bugs', (req, res) => {
+  const { message } = req.body;
+  if (!message || typeof message !== 'string' || message.trim().length < 3) {
+    return res.status(400).json({ error: 'Message too short (min 3 chars)' });
+  }
+  const text = message.trim().substring(0, 2000);
+  const userId = req.user ? req.user.id : null;
+  const nickname = req.user ? req.user.nickname : 'guest';
+  const ua = (req.headers['user-agent'] || '').substring(0, 500);
+  dbRun('INSERT INTO bugs (user_id, nickname, message, user_agent) VALUES (?,?,?,?)',
+    [userId, nickname, text, ua]);
+  res.json({ ok: true });
 });
 
 // ==================== START ====================

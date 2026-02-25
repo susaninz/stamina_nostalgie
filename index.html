@@ -634,6 +634,69 @@ body {
   margin-left: auto; margin-right: auto;
 }
 
+/* Bug report overlay */
+#bug-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.8);
+  z-index: 2000;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+#bug-overlay.show { display: flex; }
+#bug-box {
+  background: #c0c0c0;
+  border: 2px outset #fff;
+  padding: 16px 24px;
+  box-shadow: 4px 4px 0 #000;
+  color: #000;
+  min-width: 400px;
+}
+#bug-box h2 {
+  font-family: 'Tahoma', sans-serif;
+  font-size: 14px; font-weight: bold;
+  color: #000080;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #808080;
+  padding-bottom: 6px;
+}
+#bug-box textarea {
+  width: 100%;
+  height: 100px;
+  font-family: 'Tahoma', sans-serif;
+  font-size: 12px;
+  border: 2px inset #fff;
+  padding: 6px;
+  resize: vertical;
+}
+#bug-box .bug-hint {
+  font-family: 'Tahoma', sans-serif;
+  font-size: 10px;
+  color: #666;
+  margin: 6px 0;
+}
+#bug-box .btn-row { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
+#bug-box button {
+  padding: 5px 24px;
+  background: #c0c0c0;
+  border: 2px outset #fff;
+  font-family: 'Tahoma', sans-serif;
+  font-size: 11px;
+  cursor: pointer;
+}
+#bug-box button:active { border-style: inset; }
+#bug-success {
+  font-family: 'Tahoma', sans-serif;
+  font-size: 12px;
+  color: #008000;
+  font-weight: bold;
+  text-align: center;
+  display: none;
+  margin-top: 8px;
+}
+
 ::-webkit-scrollbar { width: 16px; }
 ::-webkit-scrollbar-track { background: #c0c0c0; }
 ::-webkit-scrollbar-thumb { background: #808080; border: 1px outset #c0c0c0; }
@@ -692,6 +755,7 @@ body {
         <div class="lesson-item" id="btn-toggle-censor" style="padding-left:10px">&#128584; Цензура: ВЫКЛ</div>
       </div>
     </div>
+    <div class="menu-item" id="btn-bug">Баг!</div>
     <div class="menu-item" id="btn-help" style="position:relative">
       ?
       <div class="dropdown" id="help-dropdown" style="min-width:260px;padding:10px">
@@ -804,6 +868,19 @@ body {
       <tbody id="lb-tbody"></tbody>
     </table>
     <button id="btn-close-leaderboard">OK</button>
+  </div>
+</div>
+
+<div id="bug-overlay">
+  <div id="bug-box">
+    <h2>Сообщить о баге</h2>
+    <div class="bug-hint">Опишите проблему — что произошло и что ожидалось.</div>
+    <textarea id="bug-text" placeholder="Что пошло не так?..." maxlength="2000"></textarea>
+    <div id="bug-success">Спасибо! Баг-репорт отправлен.</div>
+    <div class="btn-row">
+      <button id="btn-send-bug">Отправить</button>
+      <button id="btn-close-bug">Закрыть</button>
+    </div>
   </div>
 </div>
 
@@ -1452,6 +1529,13 @@ document.addEventListener('keydown', (e) => {
     }
     return;
   }
+  if (document.getElementById('bug-overlay').classList.contains('show')) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      document.getElementById('bug-overlay').classList.remove('show');
+    }
+    return;
+  }
 
   // Lesson navigation when no lesson active
   if (!lessonActive) {
@@ -1635,6 +1719,11 @@ document.getElementById('btn-tg-login').onclick = () => apiTgLogin();
 document.getElementById('btn-google-login').onclick = () => apiGoogleLogin();
 document.getElementById('btn-skip-login').onclick = () => skipLogin();
 
+// Bug report buttons
+document.getElementById('btn-bug').onclick = () => { closeAll(); showBugReport(); };
+document.getElementById('btn-send-bug').onclick = () => submitBugReport();
+document.getElementById('btn-close-bug').onclick = () => { document.getElementById('bug-overlay').classList.remove('show'); };
+
 document.addEventListener('click', (e) => {
   if (!e.target.closest('.menu-item')) closeAll();
 });
@@ -1774,6 +1863,30 @@ function escHtml(s) {
   const d = document.createElement('div');
   d.textContent = s;
   return d.innerHTML;
+}
+
+// ==================== BUG REPORT ====================
+function showBugReport() {
+  document.getElementById('bug-text').value = '';
+  document.getElementById('bug-success').style.display = 'none';
+  document.getElementById('bug-text').style.display = '';
+  document.getElementById('btn-send-bug').style.display = '';
+  document.getElementById('bug-overlay').classList.add('show');
+  document.getElementById('bug-text').focus();
+}
+
+async function submitBugReport() {
+  const text = document.getElementById('bug-text').value.trim();
+  if (text.length < 3) { document.getElementById('bug-text').focus(); return; }
+  try {
+    await api('POST', '/api/bugs', { message: text });
+    document.getElementById('bug-text').style.display = 'none';
+    document.getElementById('btn-send-bug').style.display = 'none';
+    document.getElementById('bug-success').style.display = 'block';
+    setTimeout(() => document.getElementById('bug-overlay').classList.remove('show'), 2000);
+  } catch(e) {
+    alert('Не удалось отправить: ' + e.message);
+  }
 }
 
 async function showServerStats() {
