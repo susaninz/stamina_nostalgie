@@ -1,0 +1,1863 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stamina — Клавиатурный тренажёр</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #000;
+  font-family: 'Courier New', monospace;
+  color: #ccc;
+  overflow: hidden;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  image-rendering: pixelated;
+}
+
+#app {
+  width: 820px;
+  background: #c0c0c0;
+  border: 2px outset #fff;
+  box-shadow: 4px 4px 0 #000;
+  position: relative;
+}
+
+/* Win98 Title bar */
+#titlebar {
+  background: linear-gradient(90deg, #000080, #1084d0);
+  padding: 3px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 22px;
+}
+#titlebar .title {
+  font-family: 'Tahoma', 'Arial', sans-serif;
+  font-size: 12px;
+  font-weight: bold;
+  color: #fff;
+  letter-spacing: 0;
+}
+#titlebar .controls { display: flex; gap: 2px; }
+#titlebar .controls span {
+  width: 16px; height: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #c0c0c0;
+  border: 1px outset #fff;
+  font-size: 9px; font-family: 'Marlett', sans-serif;
+  cursor: pointer; color: #000;
+}
+#titlebar .controls span:active { border-style: inset; }
+
+/* Win98 Menu bar */
+#menubar {
+  background: #c0c0c0;
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #808080;
+  padding: 1px 0;
+}
+#menubar .menu-item {
+  padding: 3px 10px;
+  font-family: 'Tahoma', 'Arial', sans-serif;
+  font-size: 11px;
+  color: #000;
+  cursor: pointer;
+}
+#menubar .menu-item:hover { background: #000080; color: #fff; }
+#menubar .menu-item.active { background: #000080; color: #fff; }
+
+/* Status bar - Stamina style */
+#statusbar {
+  background: #2a2a3a;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 10px;
+  border-top: 1px solid #808080;
+  border-bottom: 2px solid #404040;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  height: 28px;
+}
+#lesson-name { color: #ffcc00; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stat { color: #888; }
+.stat span { color: #00ff00; margin-left: 4px; }
+.stat .errors-val { color: #ff4444; }
+
+/* Background area with text */
+#main-area {
+  position: relative;
+  height: 210px;
+  background: #000;
+  overflow: hidden;
+}
+#bg-image {
+  position: absolute;
+  width: 100%; height: 100%;
+  background-size: cover;
+  background-position: center;
+  transition: opacity 0.8s;
+  opacity: 0.7;
+  filter: grayscale(30%);
+}
+/* CRT scanline overlay */
+#scanlines {
+  position: absolute;
+  width: 100%; height: 100%;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 1px,
+    rgba(0, 0, 0, 0.15) 1px,
+    rgba(0, 0, 0, 0.15) 2px
+  );
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Text field - like original Stamina */
+#text-container {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 92%;
+  background: rgba(0, 0, 0, 0.82);
+  border: 2px solid #555;
+  padding: 14px 18px;
+  z-index: 3;
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+}
+#text-display {
+  font-family: 'Courier New', monospace;
+  font-size: 24px;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  height: 40px;
+}
+#typed-text { color: #555; }
+#current-char {
+  color: #fff;
+  background: #cc0000;
+  padding: 0 2px;
+  animation: pulse 0.6s infinite alternate;
+}
+#remaining-text { color: #ddd; }
+@keyframes pulse {
+  from { background: #cc0000; }
+  to { background: #ff2222; }
+}
+#text-container.error-flash {
+  border-color: #ff0000 !important;
+  background: rgba(60, 0, 0, 0.85) !important;
+}
+
+/* Welcome screen */
+#welcome-screen {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.75);
+  z-index: 10;
+}
+#welcome-screen h2 {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 16px;
+  color: #ffcc00;
+  margin-bottom: 10px;
+  text-shadow: 2px 2px 0 #000;
+}
+#welcome-screen .version {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  color: #888;
+  margin-bottom: 14px;
+}
+#welcome-screen .hint {
+  font-size: 11px;
+  color: #aaa;
+}
+
+/* Dropdowns - Win98 style */
+.dropdown {
+  display: none;
+  position: absolute;
+  top: 100%; left: 0;
+  background: #c0c0c0;
+  border: 2px outset #fff;
+  z-index: 100;
+  min-width: 260px;
+  max-height: 420px;
+  overflow-y: auto;
+  box-shadow: 2px 2px 0 #000;
+}
+.dropdown .group-title {
+  font-family: 'Tahoma', sans-serif;
+  font-size: 10px;
+  color: #000080;
+  font-weight: bold;
+  padding: 6px 10px 2px;
+  border-bottom: 1px solid #808080;
+}
+.dropdown .lesson-item {
+  padding: 3px 10px 3px 18px;
+  font-size: 11px;
+  color: #000;
+  cursor: pointer;
+  font-family: 'Tahoma', sans-serif;
+}
+.dropdown .lesson-item:hover { background: #000080; color: #fff; }
+
+/* Skin selector */
+.dropdown .skin-item {
+  padding: 3px 10px;
+  font-size: 11px;
+  color: #000;
+  cursor: pointer;
+  font-family: 'Tahoma', sans-serif;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dropdown .skin-item:hover { background: #000080; color: #fff; }
+.dropdown .skin-item.active-skin { font-weight: bold; }
+.dropdown .skin-item.active-skin::before { content: '\2713  '; }
+
+.dropdown .sep { height: 1px; background: #808080; margin: 2px 0; }
+.dropdown .shortcut { float: right; color: #666; font-size: 10px; }
+
+/* Keyboard */
+#keyboard {
+  background: #1a1a1a;
+  padding: 8px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: center;
+  border-top: 2px solid #404040;
+  position: relative;
+}
+#kb-bg {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.3;
+}
+.kb-row {
+  display: flex;
+  gap: 2px;
+  position: relative;
+  z-index: 1;
+}
+.key {
+  width: 44px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Tahoma', 'Arial', sans-serif;
+  font-size: 12px; font-weight: bold;
+  border-radius: 3px;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-bottom: 2px solid rgba(0,0,0,0.4);
+  border-right: 2px solid rgba(0,0,0,0.3);
+  cursor: default;
+  transition: all 0.06s;
+  position: relative;
+  text-shadow: 1px 1px 0 rgba(0,0,0,0.6);
+}
+.key .sub {
+  position: absolute;
+  top: 1px; right: 3px;
+  font-size: 8px;
+  opacity: 0.6;
+}
+.key.active {
+  background: #fff !important;
+  color: #000 !important;
+  border-color: #fff !important;
+  box-shadow: 0 0 12px rgba(255,255,255,0.7), 0 0 25px rgba(255,255,255,0.3);
+  transform: scale(1.06);
+  text-shadow: none;
+  z-index: 5;
+}
+.key.active .sub { color: #000; }
+.key.pressed {
+  transform: scale(0.9);
+  filter: brightness(0.6);
+}
+
+/* Finger colors - vivid like original */
+.finger-lp { background: #cc2244; color: #fff; }
+.finger-lr { background: #dd7722; color: #fff; }
+.finger-lm { background: #ccaa00; color: #000; }
+.finger-li { background: #22aa55; color: #fff; }
+.finger-ri { background: #2299aa; color: #fff; }
+.finger-rm { background: #3366cc; color: #fff; }
+.finger-rr { background: #dd7722; color: #fff; }
+.finger-rp { background: #cc2244; color: #fff; }
+.finger-mod { background: #333; color: #888; border-color: rgba(255,255,255,0.08); }
+.finger-space { background: #444; color: #aaa; }
+
+.key-backspace { width: 70px; font-size: 9px; }
+.key-tab { width: 58px; font-size: 9px; }
+.key-caps { width: 66px; font-size: 9px; }
+.key-enter { width: 80px; font-size: 9px; }
+.key-lshift { width: 80px; font-size: 9px; }
+.key-rshift { width: 96px; font-size: 9px; }
+.key-space { width: 280px; font-size: 9px; }
+.key-ctrl { width: 50px; font-size: 8px; }
+.key-alt { width: 44px; font-size: 8px; }
+.key-bs { width: 20px; font-size: 8px; }
+
+/* Music indicator */
+#music-indicator {
+  position: absolute;
+  bottom: 4px; right: 8px;
+  font-size: 9px;
+  color: #555;
+  font-family: 'Tahoma', sans-serif;
+  z-index: 10;
+  cursor: pointer;
+}
+#music-indicator:hover { color: #aaa; }
+#music-indicator.playing { color: #00cc00; }
+
+/* Keyboard toggle */
+#keyboard.hidden { display: none; }
+
+/* Pause overlay */
+#pause-overlay {
+  display: none;
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 20;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+#pause-overlay.show { display: flex; }
+#pause-overlay .pause-text {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 14px;
+  color: #ffcc00;
+  text-shadow: 2px 2px 0 #000;
+  animation: pauseBlink 1s infinite;
+}
+#pause-overlay .pause-hint {
+  font-family: 'Tahoma', sans-serif;
+  font-size: 11px;
+  color: #999;
+  margin-top: 8px;
+}
+@keyframes pauseBlink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0.3; }
+}
+
+/* Results overlay */
+#results-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.8);
+  z-index: 1000;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+#results-overlay.show { display: flex; }
+#results-box {
+  background: #c0c0c0;
+  border: 2px outset #fff;
+  padding: 20px 32px;
+  text-align: center;
+  box-shadow: 4px 4px 0 #000;
+  color: #000;
+  min-width: 400px;
+}
+#results-box h2 {
+  font-family: 'Tahoma', sans-serif;
+  font-size: 16px; font-weight: bold;
+  color: #000080;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #808080;
+  padding-bottom: 8px;
+}
+#results-box .result-line {
+  font-family: 'Tahoma', sans-serif;
+  font-size: 12px;
+  color: #000;
+  margin: 5px 0;
+  text-align: left;
+}
+#results-box .result-line span {
+  font-weight: bold; float: right;
+}
+#results-box .result-line.speed span { color: #008000; font-size: 18px; }
+#results-box .result-line.bad span { color: #cc0000; }
+#results-box .result-line.tendency span { color: #000080; }
+#results-graph {
+  width: 350px; height: 100px;
+  margin: 10px auto 6px;
+  border: 1px inset #808080;
+  background: #fff;
+}
+#results-box button {
+  margin-top: 12px;
+  padding: 6px 28px;
+  background: #c0c0c0;
+  border: 2px outset #fff;
+  font-family: 'Tahoma', sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+}
+#results-box button:active { border-style: inset; }
+#results-box .btn-row { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
+
+/* Stats overlay */
+#stats-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.8);
+  z-index: 1000;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+#stats-overlay.show { display: flex; }
+#stats-box {
+  background: #c0c0c0;
+  border: 2px outset #fff;
+  padding: 16px 24px;
+  box-shadow: 4px 4px 0 #000;
+  color: #000;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+#stats-box h2 {
+  font-family: 'Tahoma', sans-serif;
+  font-size: 14px; font-weight: bold;
+  color: #000080;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #808080;
+  padding-bottom: 6px;
+}
+.stats-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 20px;
+  margin-bottom: 12px;
+  font-family: 'Tahoma', sans-serif;
+  font-size: 11px;
+}
+.stats-summary .label { color: #444; }
+.stats-summary .value { font-weight: bold; text-align: right; }
+#stats-graph-overall {
+  width: 100%; height: 120px;
+  border: 1px inset #808080;
+  background: #fff;
+  margin-bottom: 10px;
+}
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Tahoma', sans-serif;
+  font-size: 10px;
+}
+.stats-table th {
+  background: #000080;
+  color: #fff;
+  padding: 3px 6px;
+  text-align: left;
+  font-weight: bold;
+}
+.stats-table td {
+  padding: 2px 6px;
+  border-bottom: 1px solid #ddd;
+}
+.stats-table tr:nth-child(even) td { background: #d8d8d8; }
+#stats-box button {
+  margin-top: 10px;
+  padding: 5px 24px;
+  background: #c0c0c0;
+  border: 2px outset #fff;
+  font-family: 'Tahoma', sans-serif;
+  font-size: 11px;
+  cursor: pointer;
+}
+#stats-box button:active { border-style: inset; }
+#stats-box .btn-row { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
+
+/* Login overlay */
+#login-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 2000;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+#login-overlay.show { display: flex; }
+#login-box {
+  background: #c0c0c0;
+  border: 2px outset #fff;
+  padding: 20px 30px;
+  box-shadow: 4px 4px 0 #000;
+  color: #000;
+  text-align: center;
+  min-width: 340px;
+}
+#login-box h2 {
+  font-family: 'Tahoma', sans-serif;
+  font-size: 14px; font-weight: bold;
+  color: #000080;
+  margin-bottom: 14px;
+  border-bottom: 1px solid #808080;
+  padding-bottom: 6px;
+}
+#login-box .login-row {
+  margin: 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+}
+#login-box input[type="text"] {
+  padding: 4px 8px;
+  font-family: 'Tahoma', sans-serif;
+  font-size: 12px;
+  border: 2px inset #fff;
+  width: 200px;
+}
+#login-box button, #login-box .login-btn {
+  padding: 5px 16px;
+  background: #c0c0c0;
+  border: 2px outset #fff;
+  font-family: 'Tahoma', sans-serif;
+  font-size: 11px;
+  cursor: pointer;
+  display: inline-block;
+  text-align: center;
+}
+#login-box button:active, #login-box .login-btn:active { border-style: inset; }
+#login-box .sep-line { height: 1px; background: #808080; margin: 10px 0; }
+#login-box .or-text { font-family: 'Tahoma', sans-serif; font-size: 10px; color: #666; margin: 6px 0; }
+#login-box .skip-link { font-family: 'Tahoma', sans-serif; font-size: 10px; color: #0000cc; cursor: pointer; margin-top: 10px; text-decoration: underline; }
+#login-box .skip-link:hover { color: #cc0000; }
+
+/* User bar */
+#user-bar {
+  position: absolute;
+  top: 3px; right: 60px;
+  font-family: 'Tahoma', sans-serif;
+  font-size: 10px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 5;
+}
+#user-bar .user-avatar {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  border: 1px solid #fff;
+}
+#user-bar .user-name { cursor: pointer; }
+#user-bar .user-name:hover { text-decoration: underline; }
+#user-bar .logout-btn { cursor: pointer; opacity: 0.6; font-size: 9px; }
+#user-bar .logout-btn:hover { opacity: 1; }
+
+/* Leaderboard overlay */
+#leaderboard-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.8);
+  z-index: 1000;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+#leaderboard-overlay.show { display: flex; }
+#leaderboard-box {
+  background: #c0c0c0;
+  border: 2px outset #fff;
+  padding: 16px 24px;
+  box-shadow: 4px 4px 0 #000;
+  color: #000;
+  min-width: 440px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+#leaderboard-box h2 {
+  font-family: 'Tahoma', sans-serif;
+  font-size: 14px; font-weight: bold;
+  color: #000080;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #808080;
+  padding-bottom: 6px;
+  text-align: center;
+}
+.lb-table { width: 100%; border-collapse: collapse; font-family: 'Tahoma', sans-serif; font-size: 11px; }
+.lb-table th { background: #000080; color: #fff; padding: 4px 8px; text-align: left; }
+.lb-table td { padding: 3px 8px; border-bottom: 1px solid #ddd; }
+.lb-table tr:nth-child(even) td { background: #d8d8d8; }
+.lb-table .rank-1 td { background: #ffd700; font-weight: bold; }
+.lb-table .rank-2 td { background: #e0e0e0; }
+.lb-table .rank-3 td { background: #deb887; }
+#leaderboard-box button {
+  margin-top: 10px;
+  padding: 5px 24px;
+  background: #c0c0c0;
+  border: 2px outset #fff;
+  font-family: 'Tahoma', sans-serif;
+  font-size: 11px;
+  cursor: pointer;
+  display: block;
+  margin-left: auto; margin-right: auto;
+}
+
+::-webkit-scrollbar { width: 16px; }
+::-webkit-scrollbar-track { background: #c0c0c0; }
+::-webkit-scrollbar-thumb { background: #808080; border: 1px outset #c0c0c0; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="titlebar">
+    <span class="title">Stamina 2.5 — Клавиатурный тренажёр</span>
+    <div id="user-bar" style="display:none">
+      <img class="user-avatar" id="user-avatar" src="" style="display:none">
+      <span class="user-name" id="user-name" onclick="showLogin()"></span>
+      <span class="logout-btn" id="btn-logout" onclick="apiLogout()">[выйти]</span>
+    </div>
+    <div class="controls">
+      <span>_</span>
+      <span>&square;</span>
+      <span>&times;</span>
+    </div>
+  </div>
+
+  <div id="menubar">
+    <div class="menu-item" id="btn-stop">Стоп</div>
+    <div class="menu-item" id="btn-lessons" style="position:relative">
+      Уроки
+      <div class="dropdown" id="lesson-dropdown"></div>
+    </div>
+    <div class="menu-item" id="btn-layout" style="position:relative">
+      Раскладка
+      <div class="dropdown" id="layout-dropdown"></div>
+    </div>
+    <div class="menu-item" id="btn-skins" style="position:relative">
+      Фон
+      <div class="dropdown" id="skin-dropdown"></div>
+    </div>
+    <div class="menu-item" id="btn-progress">Прогресс</div>
+    <div class="menu-item" id="btn-leaderboard">Рейтинг</div>
+    <div class="menu-item" id="btn-options" style="position:relative">
+      Опции
+      <div class="dropdown" id="options-dropdown" style="min-width:240px;padding:8px 12px">
+        <div class="lesson-item" id="btn-toggle-keyboard" style="padding-left:10px">&#9000; Клавиатура: ВКЛ<span class="shortcut">F2</span></div>
+        <div class="sep"></div>
+        <div style="font-family:Tahoma,sans-serif;font-size:11px;color:#000;margin:4px 0 4px"><b>Размер шрифта</b></div>
+        <div class="lesson-item" id="btn-font-small" style="padding-left:10px">   Мелкий</div>
+        <div class="lesson-item" id="btn-font-medium" style="padding-left:10px">&check; Средний</div>
+        <div class="lesson-item" id="btn-font-large" style="padding-left:10px">   Крупный</div>
+        <div class="sep"></div>
+        <div style="font-family:Tahoma,sans-serif;font-size:11px;color:#000;margin:4px 0 4px"><b>Громкость звуков</b></div>
+        <input type="range" id="volume-slider" min="0" max="100" value="80" style="width:190px">
+        <div class="sep"></div>
+        <div style="font-family:Tahoma,sans-serif;font-size:11px;color:#000;margin:4px 0 4px"><b>Громкость музыки</b></div>
+        <input type="range" id="music-volume-slider" min="0" max="100" value="40" style="width:190px">
+        <div class="sep"></div>
+        <div class="lesson-item" id="btn-toggle-music" style="padding-left:10px">&female; Музыка: ВКЛ</div>
+        <div class="lesson-item" id="btn-toggle-censor" style="padding-left:10px">&#128584; Цензура: ВЫКЛ</div>
+      </div>
+    </div>
+    <div class="menu-item" id="btn-help" style="position:relative">
+      ?
+      <div class="dropdown" id="help-dropdown" style="min-width:260px;padding:10px">
+        <div style="font-family:Tahoma,sans-serif;font-size:11px;color:#000;line-height:1.6">
+          <b>Stamina Web Clone</b><br>
+          Оригинал: stamina.ru<br><br>
+          <b>Горячие клавиши:</b><br>
+          Esc — пауза (2x Esc — стоп)<br>
+          F2 — скрыть/показать клавиатуру<br>
+          PgUp — предыдущий урок<br>
+          PgDn — следующий урок<br><br>
+          Выберите урок и начните печатать.<br>
+          Фон — сменить фоновую картинку.<br>
+          Прогресс — статистика занятий.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="statusbar">
+    <div id="lesson-name">Выберите урок</div>
+    <div style="display:flex;gap:16px">
+      <div class="stat">Время <span id="stat-time">00:00</span></div>
+      <div class="stat">Скорость <span id="stat-speed">0</span></div>
+      <div class="stat">Ошибки <span class="errors-val" id="stat-errors">0</span></div>
+    </div>
+  </div>
+
+  <div id="main-area">
+    <div id="bg-image"></div>
+    <div id="scanlines"></div>
+    <div id="text-container">
+      <div id="text-display">
+        <span id="typed-text"></span><span id="current-char"></span><span id="remaining-text"></span>
+      </div>
+    </div>
+    <div id="pause-overlay">
+      <div class="pause-text">ПАУЗА</div>
+      <div class="pause-hint">Нажмите любую клавишу для продолжения</div>
+      <div class="pause-hint">Esc — завершить урок</div>
+    </div>
+    <div id="welcome-screen">
+      <h2>STAMINA</h2>
+      <div class="version">версия 2.5 web</div>
+      <div class="hint">Выберите урок в меню «Уроки»</div>
+    </div>
+  </div>
+
+  <div id="keyboard">
+    <div id="kb-bg"></div>
+    <div id="music-indicator" title="Нажмите чтобы вкл/выкл музыку">&female;</div>
+  </div>
+</div>
+
+<div id="results-overlay">
+  <div id="results-box">
+    <h2>Результаты</h2>
+    <div class="result-line speed">Скорость: <span id="res-speed">0 зн/мин</span></div>
+    <div class="result-line tendency">Тенденция: <span id="res-tendency">—</span></div>
+    <div class="result-line">Символов: <span id="res-right">0</span></div>
+    <div class="result-line bad">Ошибок: <span id="res-errors">0</span></div>
+    <div class="result-line">Время: <span id="res-time">00:00</span></div>
+    <div class="result-line">Точность: <span id="res-accuracy">100%</span></div>
+    <canvas id="results-graph" width="350" height="100"></canvas>
+    <div class="btn-row">
+      <button id="btn-close-results">OK</button>
+      <button id="btn-next-lesson">Следующий урок &raquo;</button>
+    </div>
+  </div>
+</div>
+
+<div id="stats-overlay">
+  <div id="stats-box">
+    <h2>Прогресс</h2>
+    <div class="stats-summary" id="stats-summary"></div>
+    <canvas id="stats-graph-overall" width="540" height="120"></canvas>
+    <table class="stats-table">
+      <thead><tr><th>Дата</th><th>Урок</th><th>Скорость</th><th>Ошибки</th><th>Точность</th><th>Время</th></tr></thead>
+      <tbody id="stats-tbody"></tbody>
+    </table>
+    <div class="btn-row">
+      <button id="btn-close-stats">OK</button>
+      <button id="btn-clear-stats">Очистить</button>
+    </div>
+  </div>
+</div>
+
+<div id="login-overlay">
+  <div id="login-box">
+    <h2>Добро пожаловать в Stamina!</h2>
+    <div class="login-row">
+      <input type="text" id="guest-nickname" placeholder="Ваш никнейм" maxlength="30">
+      <button id="btn-guest-login">Войти</button>
+    </div>
+    <div class="sep-line"></div>
+    <div class="or-text">или войдите через:</div>
+    <div class="login-row">
+      <button id="btn-tg-login" style="background:#0088cc;color:#fff;border-color:#006699">Telegram</button>
+      <button id="btn-google-login" style="background:#fff;color:#333;border-color:#ddd">Google</button>
+    </div>
+    <div class="skip-link" id="btn-skip-login">Продолжить как гость (без сохранения)</div>
+  </div>
+</div>
+
+<div id="leaderboard-overlay">
+  <div id="leaderboard-box">
+    <h2>Таблица лидеров</h2>
+    <table class="lb-table">
+      <thead><tr><th>#</th><th>Игрок</th><th>Лучшая</th><th>Средняя</th><th>Занятий</th></tr></thead>
+      <tbody id="lb-tbody"></tbody>
+    </table>
+    <button id="btn-close-leaderboard">OK</button>
+  </div>
+</div>
+
+<script>
+// ==================== CONFIG ====================
+let lessonsData = null;
+let currentLayout = 'ru';
+let currentLessonIdx = -1;
+let currentLessonData = null;
+let soundVolume = 0.8;
+let musicVolume = 0.4;
+let musicEnabled = true;
+let keyboardVisible = true;
+let lessonPaused = false;
+let censorSounds = false;
+let fontSize = 24; // 18, 24, 30
+
+// Censored sound prefixes (fart, burp sounds)
+const CENSORED_PREFIXES = ['Ow - B&B fart', 'Ow - Fart', 'Ow - Fast fart', 'Ow - Burp'];
+
+// ==================== PERSISTENCE ====================
+function saveSettings() {
+  try {
+    localStorage.setItem('stamina_settings', JSON.stringify({
+      layout: currentLayout, skin: currentSkin, soundVolume, musicVolume,
+      musicEnabled, keyboardVisible, censorSounds, fontSize
+    }));
+  } catch(e) {}
+}
+
+function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem('stamina_settings'));
+    if (!s) return;
+    if (s.layout) currentLayout = s.layout;
+    if (s.skin !== undefined) currentSkin = s.skin;
+    if (s.soundVolume !== undefined) soundVolume = s.soundVolume;
+    if (s.musicVolume !== undefined) musicVolume = s.musicVolume;
+    if (s.musicEnabled !== undefined) musicEnabled = s.musicEnabled;
+    if (s.keyboardVisible !== undefined) keyboardVisible = s.keyboardVisible;
+    if (s.censorSounds !== undefined) censorSounds = s.censorSounds;
+    if (s.fontSize !== undefined) fontSize = s.fontSize;
+  } catch(e) {}
+}
+
+// ==================== STATS ====================
+function getStats() {
+  try { return JSON.parse(localStorage.getItem('stamina_stats')) || []; }
+  catch(e) { return []; }
+}
+
+function saveSessionStats(data) {
+  const stats = getStats();
+  stats.push({
+    date: new Date().toISOString(),
+    lesson: data.lesson,
+    layout: data.layout,
+    speed: data.speed,
+    errors: data.errors,
+    total: data.total,
+    accuracy: data.accuracy,
+    time: data.time,
+    speedBySecond: data.speedBySecond || []
+  });
+  try { localStorage.setItem('stamina_stats', JSON.stringify(stats)); } catch(e) {}
+}
+
+function clearStats() {
+  if (confirm('Очистить всю статистику?')) {
+    localStorage.removeItem('stamina_stats');
+    showStats();
+  }
+}
+
+function showStats() {
+  const stats = getStats();
+  const summary = document.getElementById('stats-summary');
+  const tbody = document.getElementById('stats-tbody');
+
+  // Summary
+  const totalSessions = stats.length;
+  const totalTime = stats.reduce((a, s) => a + s.time, 0);
+  const totalChars = stats.reduce((a, s) => a + s.total, 0);
+  const avgSpeed = totalSessions > 0 ? Math.round(stats.reduce((a, s) => a + s.speed, 0) / totalSessions) : 0;
+  const bestSpeed = totalSessions > 0 ? Math.max(...stats.map(s => s.speed)) : 0;
+  const avgAcc = totalSessions > 0 ? Math.round(stats.reduce((a, s) => a + s.accuracy, 0) / totalSessions) : 0;
+  const tm = Math.floor(totalTime / 60);
+  const ts = totalTime % 60;
+
+  summary.innerHTML = `
+    <div class="label">Занятий:</div><div class="value">${totalSessions}</div>
+    <div class="label">Общее время:</div><div class="value">${tm} мин ${ts} сек</div>
+    <div class="label">Символов набрано:</div><div class="value">${totalChars}</div>
+    <div class="label">Средняя скорость:</div><div class="value">${avgSpeed} зн/мин</div>
+    <div class="label">Лучшая скорость:</div><div class="value">${bestSpeed} зн/мин</div>
+    <div class="label">Средняя точность:</div><div class="value">${avgAcc}%</div>
+  `;
+
+  // Table (last 50 sessions, newest first)
+  tbody.innerHTML = '';
+  const recent = stats.slice(-50).reverse();
+  recent.forEach(s => {
+    const d = new Date(s.date);
+    const dateStr = d.toLocaleDateString('ru-RU') + ' ' + d.toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'});
+    const m = String(Math.floor(s.time / 60)).padStart(2, '0');
+    const sec = String(s.time % 60).padStart(2, '0');
+    const tr = document.createElement('tr');
+    // SECURITY FIX: Escape lesson name to prevent XSS from tampered localStorage
+    tr.innerHTML = `<td>${dateStr}</td><td>${escHtml(s.lesson||'—')}</td><td>${s.speed}</td><td>${s.errors}</td><td>${s.accuracy}%</td><td>${m}:${sec}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  // Graph - speed over sessions
+  drawStatsGraph(stats);
+
+  document.getElementById('stats-overlay').classList.add('show');
+}
+
+function drawStatsGraph(stats) {
+  const canvas = document.getElementById('stats-graph-overall');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  if (stats.length < 2) {
+    ctx.fillStyle = '#888';
+    ctx.font = '11px Tahoma';
+    ctx.textAlign = 'center';
+    ctx.fillText('Недостаточно данных для графика', w/2, h/2);
+    return;
+  }
+
+  const speeds = stats.map(s => s.speed);
+  const maxSpd = Math.max(...speeds, 50);
+  const pad = { top: 15, bottom: 20, left: 35, right: 10 };
+  const gw = w - pad.left - pad.right;
+  const gh = h - pad.top - pad.bottom;
+
+  // Grid
+  ctx.strokeStyle = '#ddd';
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + gh * i / 4;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y); ctx.stroke();
+    ctx.fillStyle = '#888'; ctx.font = '9px Tahoma'; ctx.textAlign = 'right';
+    ctx.fillText(Math.round(maxSpd * (4-i) / 4), pad.left - 4, y + 3);
+  }
+
+  // Speed line
+  ctx.strokeStyle = '#008000';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  speeds.forEach((spd, i) => {
+    const x = pad.left + (gw * i / (speeds.length - 1));
+    const y = pad.top + gh - (spd / maxSpd * gh);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Moving average
+  if (speeds.length >= 5) {
+    ctx.strokeStyle = '#cc0000';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    for (let i = 0; i < speeds.length; i++) {
+      const start = Math.max(0, i - 2);
+      const end = Math.min(speeds.length, i + 3);
+      const avg = speeds.slice(start, end).reduce((a,b) => a+b, 0) / (end - start);
+      const x = pad.left + (gw * i / (speeds.length - 1));
+      const y = pad.top + gh - (avg / maxSpd * gh);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Labels
+  ctx.fillStyle = '#444'; ctx.font = '8px Tahoma'; ctx.textAlign = 'center';
+  ctx.fillText('Скорость (зелёный) / Тренд (красный)', w/2, h - 3);
+}
+
+// ==================== SKINS ====================
+const SKINS = [
+  { name: 'Поле', file: 'skins/Field.jpg' },
+  { name: 'Поле (цвет)', file: 'skins/Field (color).jpg' },
+  { name: 'Озеро', file: 'skins/Lake.jpg' },
+  { name: 'Горы', file: 'skins/Mountain.jpg' },
+  { name: 'Сафари', file: 'skins/Safari.jpg' },
+  { name: 'Море', file: 'skins/mtrx_Sea.jpg' },
+  { name: 'Закат на море', file: 'skins/mtrx_SeaSun.jpg' },
+  { name: 'Волны', file: 'skins/mtrx_SeaWaves.jpg' },
+  { name: 'Пальма', file: 'skins/mtrx_Palm.jpg' },
+  { name: 'Дорога', file: 'skins/mtrx_Road.jpg' },
+  { name: 'Луг', file: 'skins/mtrx_Field.jpg' },
+  { name: 'Храм', file: 'skins/mtrx_Temple.jpg' },
+  { name: 'Остров', file: 'skins/mtrx_TreeIsland.jpg' },
+  { name: 'Облака', file: 'skins/nba_Clouds.jpg' },
+  { name: 'Пруд', file: 'skins/nba_Pond.jpg' },
+  { name: 'Зимняя вода', file: 'skins/nba_Winterwater.jpg' },
+];
+let currentSkin = 0;
+
+function applySkin(idx) {
+  currentSkin = idx;
+  document.getElementById('bg-image').style.backgroundImage = 'url("' + SKINS[idx].file + '")';
+  buildSkinMenu();
+  saveSettings();
+}
+
+// ==================== MUSIC ====================
+const MENU_MUSIC = [
+  'menu_sounds/Menu - A-ha - Take On Me.wav',
+  'menu_sounds/Menu - Angelo Badalamenti - Twin Peaks Theme.wav',
+  'menu_sounds/Menu - Art Of Noise - Moments In Love.wav',
+  'menu_sounds/Menu - Capella - U got 2 let the music.wav',
+  'menu_sounds/Menu - Daft Punk - Around The World.wav',
+  'menu_sounds/Menu - Georget Bizet - Carmen (Les Toreadors).wav',
+  'menu_sounds/Menu - Inspekdah Deck - Revampness.wav',
+  'menu_sounds/Menu - Interface - Sands of time.wav',
+  'menu_sounds/Menu - IT.wav',
+  'menu_sounds/Menu - Kino - Kukushka.wav',
+  'menu_sounds/Menu - Klaus Schulze - Crystal Lake.wav',
+  'menu_sounds/Menu - Mylene Farmer - Allan (Extended mix).wav',
+  'menu_sounds/Menu - Soren Lysholm Larsen - sll3.wav',
+];
+const TYPING_MUSIC = ['music/Darude - Touche me feel me.mp3'];
+
+let menuMusicPlayer = null;
+let typingMusicPlayer = null;
+
+function startMenuMusic() {
+  if (!musicEnabled) return;
+  stopTypingMusic();
+  if (menuMusicPlayer && !menuMusicPlayer.paused) return;
+  const file = MENU_MUSIC[Math.floor(Math.random() * MENU_MUSIC.length)];
+  menuMusicPlayer = new Audio(file);
+  menuMusicPlayer.volume = musicVolume;
+  menuMusicPlayer.loop = false;
+  menuMusicPlayer.addEventListener('ended', () => startMenuMusic());
+  menuMusicPlayer.play().catch(() => {});
+  document.getElementById('music-indicator').classList.add('playing');
+}
+
+function stopMenuMusic() {
+  if (menuMusicPlayer) { menuMusicPlayer.pause(); menuMusicPlayer.currentTime = 0; menuMusicPlayer = null; }
+}
+
+function startTypingMusic() {
+  if (!musicEnabled) return;
+  stopMenuMusic();
+  if (typingMusicPlayer && !typingMusicPlayer.paused) return;
+  const file = TYPING_MUSIC[Math.floor(Math.random() * TYPING_MUSIC.length)];
+  typingMusicPlayer = new Audio(file);
+  typingMusicPlayer.volume = musicVolume;
+  typingMusicPlayer.loop = true;
+  typingMusicPlayer.play().catch(() => {});
+  document.getElementById('music-indicator').classList.add('playing');
+}
+
+function stopTypingMusic() {
+  if (typingMusicPlayer) { typingMusicPlayer.pause(); typingMusicPlayer.currentTime = 0; typingMusicPlayer = null; }
+}
+
+function stopAllMusic() {
+  stopMenuMusic(); stopTypingMusic();
+  document.getElementById('music-indicator').classList.remove('playing');
+}
+
+function toggleMusic() {
+  musicEnabled = !musicEnabled;
+  document.getElementById('btn-toggle-music').textContent = '\u266A Музыка: ' + (musicEnabled ? 'ВКЛ' : 'ВЫКЛ');
+  if (!musicEnabled) stopAllMusic();
+  else { if (!lessonActive) startMenuMusic(); else startTypingMusic(); }
+  saveSettings();
+}
+
+// ==================== SOUNDS ====================
+const SOUND_FILES = {
+  Ow: ["Ow - Aaahh.mp3","Ow - B&B 1.mp3","Ow - B&B 2.mp3","Ow - B&B 3.mp3","Ow - B&B 4.mp3","Ow - B&B fart1.mp3","Ow - B&B fart2.mp3","Ow - Burp 01.mp3","Ow - Burp 02.mp3","Ow - Car Horn.mp3","Ow - Car.mp3","Ow - Cough 01.mp3","Ow - Cough 02.mp3","Ow - Cough 03.mp3","Ow - Cow.mp3","Ow - Crush 01.mp3","Ow - Crush 02.mp3","Ow - Cuckoo.mp3","Ow - Dog.mp3","Ow - Fart 01.mp3","Ow - Fart 02.mp3","Ow - Fast fart.mp3","Ow - Female 01.mp3","Ow - Female 02.mp3","Ow - Female 03.mp3","Ow - Gargle.mp3","Ow - Goat.mp3","Ow - Male 01.mp3","Ow - Male 02.mp3","Ow - Male 03.mp3","Ow - Male 04.mp3","Ow - Male 05.mp3","Ow - No.mp3","Ow - Noo.mp3","Ow - Ooff.mp3","Ow - Ouch.mp3","Ow - Pig.mp3","Ow - Sheep.mp3","Ow - Sneeze.mp3","Ow - Throat.mp3","Ow - Uh-oh.mp3","Ow - Vinni-Pooh.mp3","Ow 01.mp3","Ow 02.mp3","Ow 03.mp3","Ow 04.mp3"],
+  Laugh: ["Laugh - B&B.mp3","Laugh - Baby.mp3","Laugh - Evil giggle.mp3","Laugh - Female 01.mp3","Laugh - Female 02.mp3","Laugh - Group.mp3","Laugh - Haha.mp3","Laugh - Hahaha.mp3","Laugh - Hilari1.mp3","Laugh - Hilari2.mp3","Laugh - Hohooouu.mp3","Laugh - Male 01.mp3","Laugh - Male 02.mp3","Laugh - Male 03.mp3","Laugh - Male 04.mp3","Laugh - Male 05.mp3","Laugh - Snicker.mp3","Laugh - Witch Cackle.mp3","Laugh 01.mp3","Laugh 02.mp3","Laugh 03.mp3","Laugh 04.mp3","Laugh 05.mp3","Laugh 06.mp3","Laugh 07.mp3","Laugh 08.mp3"],
+  Good: ["Good - All right.mp3","Good - Applause 01.mp3","Good - Applause 02.mp3","Good - Applause.mp3","Good - Cheburashka - Eto zdorovo.mp3","Good - Cheburashka - Molodets starik.mp3","Good - Excellent.mp3","Good - Fanfare.mp3","Good - Kakaya prelest.mp3","Good - Pleasure.mp3","Good - Pozdravlyau, Puh.mp3","Good - Prelestno.mp3","Good - Tonkaya rabota.mp3","Good - Ura!.mp3","Good - Wine.mp3","Good - Yea.mp3","Good - Yeah.mp3","Good - Yes 01.mp3","Good - Yes 02.mp3","Good - Yes B&B.mp3","Good 01.mp3","Good 02.mp3"],
+  Bad: ["Bad - B&B suxx.mp3","Bad - Bezobrazie1.mp3","Bad - Bezobrazie2.mp3","Bad - Carlson - Kakoy koshmar.mp3","Bad - Carlson - Proso uzhas.mp3","Bad - Carlson - Ya tak ne igrau.mp3","Bad - Cry.mp3","Bad - Koshmar.mp3","Bad - Malovato1.mp3","Bad - Malovato2.mp3","Bad - Mamochka.mp3","Bad - Ne goruy.mp3","Bad - Ne poluchaetsa.mp3","Bad - Police.mp3"],
+  Start: ["Start - Ambient.mp3","Start - Arcade Alarm.mp3","Start - Arcade Chirp Descend.mp3","Start - Arcade Power Up.mp3","Start - Bjaz.mp3","Start - Bulp.mp3","Start - Engine.mp3","Start - Gong.mp3","Start - Headshk.mp3","Start - Horse.mp3","Start - Let's Do It.mp3","Start - Oops.mp3","Start - Oracle.mp3","Start - Poslala.mp3","Start - Sad Guitar.mp3","Start - Spring.mp3","Start - Upper.mp3","Start 01.mp3","Start 02.mp3","Start 03.mp3","Start 04.mp3","Start 05.mp3","Start 06.mp3"],
+  Hello: ["Hello - Carlson - Nachinaem rabotu.mp3","Hello - Carlson - Plushkami baluemsya.mp3","Hello - Carlson - Spokoystvie.mp3","Hello - Cheburashechka.mp3","Hello - Computer.mp3","Hello - Knocking on Door.mp3","Hello - Kto-tam.mp3","Hello - Na minutochku.mp3","Hello - Typewriter.mp3","Hello 01.mp3"],
+  Bye: ["Bye - Apple.mp3","Bye - Carlson - Bud zdorov malish.mp3","Bye - Good Bye (Arnold).mp3","Bye - Good Bye.mp3","Bye - Hasta La Vista Baby.mp3","Bye - I'll be back.mp3","Bye - Uzhe uhodite.mp3","Bye - Vinni - Do svidaniya.mp3","Bye - Vinni - Nam pora.mp3","Bye - Vinni - Vsego horoshego.mp3","Bye-Bye.mp3"]
+};
+
+function pickRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function playSound(cat) {
+  if (soundVolume <= 0) return;
+  let files = SOUND_FILES[cat];
+  if (!files || !files.length) return;
+  if (censorSounds && cat === 'Ow') {
+    files = files.filter(f => !CENSORED_PREFIXES.some(p => f.startsWith(p)));
+    if (!files.length) return;
+  }
+  try {
+    const a = new Audio('sounds/' + encodeURIComponent(pickRandom(files)));
+    a.volume = soundVolume;
+    a.play().catch(() => {});
+  } catch(e) {}
+}
+
+function playErrorSound() {
+  playSound('Ow');
+  if (Math.random() < 0.22) setTimeout(() => playSound('Laugh'), 350);
+}
+
+// ==================== KEYBOARD ====================
+const RU_ROWS = [
+  [{c:'\u0451',s:'\u0401',f:'lp'},{c:'1',s:'!',f:'lp'},{c:'2',s:'"',f:'lr'},{c:'3',s:'\u2116',f:'lm'},{c:'4',s:';',f:'li'},{c:'5',s:'%',f:'li'},{c:'6',s:':',f:'ri'},{c:'7',s:'?',f:'ri'},{c:'8',s:'*',f:'rm'},{c:'9',s:'(',f:'rr'},{c:'0',s:')',f:'rp'},{c:'-',s:'_',f:'rp'},{c:'=',s:'+',f:'rp'},{c:'\u232B',s:'',f:'mod',cls:'key-backspace'}],
+  [{c:'Tab',s:'',f:'mod',cls:'key-tab'},{c:'\u0439',s:'\u0419',f:'lp'},{c:'\u0446',s:'\u0426',f:'lr'},{c:'\u0443',s:'\u0423',f:'lm'},{c:'\u043a',s:'\u041a',f:'li'},{c:'\u0435',s:'\u0415',f:'li'},{c:'\u043d',s:'\u041d',f:'ri'},{c:'\u0433',s:'\u0413',f:'ri'},{c:'\u0448',s:'\u0428',f:'rm'},{c:'\u0449',s:'\u0429',f:'rr'},{c:'\u0437',s:'\u0417',f:'rp'},{c:'\u0445',s:'\u0425',f:'rp'},{c:'\u044a',s:'\u042a',f:'rp'},{c:'\\',s:'/',f:'rp'}],
+  [{c:'Caps',s:'',f:'mod',cls:'key-caps'},{c:'\u0444',s:'\u0424',f:'lp'},{c:'\u044b',s:'\u042b',f:'lr'},{c:'\u0432',s:'\u0412',f:'lm'},{c:'\u0430',s:'\u0410',f:'li'},{c:'\u043f',s:'\u041f',f:'li'},{c:'\u0440',s:'\u0420',f:'ri'},{c:'\u043e',s:'\u041e',f:'ri'},{c:'\u043b',s:'\u041b',f:'rm'},{c:'\u0434',s:'\u0414',f:'rr'},{c:'\u0436',s:'\u0416',f:'rp'},{c:'\u044d',s:'\u042d',f:'rp'},{c:'Enter',s:'',f:'mod',cls:'key-enter'}],
+  [{c:'Shift',s:'',f:'mod',cls:'key-lshift'},{c:'\u044f',s:'\u042f',f:'lp'},{c:'\u0447',s:'\u0427',f:'lr'},{c:'\u0441',s:'\u0421',f:'lm'},{c:'\u043c',s:'\u041c',f:'li'},{c:'\u0438',s:'\u0418',f:'li'},{c:'\u0442',s:'\u0422',f:'ri'},{c:'\u044c',s:'\u042c',f:'ri'},{c:'\u0431',s:'\u0411',f:'rm'},{c:'\u044e',s:'\u042e',f:'rr'},{c:'.',s:',',f:'rp'},{c:'Shift',s:'',f:'mod',cls:'key-rshift'}],
+  [{c:'Ctrl',s:'',f:'mod',cls:'key-ctrl'},{c:'Win',s:'',f:'mod',cls:'key-bs'},{c:'Alt',s:'',f:'mod',cls:'key-alt'},{c:'',s:'',f:'space',cls:'key-space'},{c:'Alt',s:'',f:'mod',cls:'key-alt'},{c:'Win',s:'',f:'mod',cls:'key-bs'},{c:'Ctrl',s:'',f:'mod',cls:'key-ctrl'}]
+];
+
+const EN_ROWS = [
+  [{c:'`',s:'~',f:'lp'},{c:'1',s:'!',f:'lp'},{c:'2',s:'@',f:'lr'},{c:'3',s:'#',f:'lm'},{c:'4',s:'$',f:'li'},{c:'5',s:'%',f:'li'},{c:'6',s:'^',f:'ri'},{c:'7',s:'&',f:'ri'},{c:'8',s:'*',f:'rm'},{c:'9',s:'(',f:'rr'},{c:'0',s:')',f:'rp'},{c:'-',s:'_',f:'rp'},{c:'=',s:'+',f:'rp'},{c:'\u232B',s:'',f:'mod',cls:'key-backspace'}],
+  [{c:'Tab',s:'',f:'mod',cls:'key-tab'},{c:'q',s:'Q',f:'lp'},{c:'w',s:'W',f:'lr'},{c:'e',s:'E',f:'lm'},{c:'r',s:'R',f:'li'},{c:'t',s:'T',f:'li'},{c:'y',s:'Y',f:'ri'},{c:'u',s:'U',f:'ri'},{c:'i',s:'I',f:'rm'},{c:'o',s:'O',f:'rr'},{c:'p',s:'P',f:'rp'},{c:'[',s:'{',f:'rp'},{c:']',s:'}',f:'rp'},{c:'\\',s:'|',f:'rp'}],
+  [{c:'Caps',s:'',f:'mod',cls:'key-caps'},{c:'a',s:'A',f:'lp'},{c:'s',s:'S',f:'lr'},{c:'d',s:'D',f:'lm'},{c:'f',s:'F',f:'li'},{c:'g',s:'G',f:'li'},{c:'h',s:'H',f:'ri'},{c:'j',s:'J',f:'ri'},{c:'k',s:'K',f:'rm'},{c:'l',s:'L',f:'rr'},{c:';',s:':',f:'rp'},{c:"'",s:'"',f:'rp'},{c:'Enter',s:'',f:'mod',cls:'key-enter'}],
+  [{c:'Shift',s:'',f:'mod',cls:'key-lshift'},{c:'z',s:'Z',f:'lp'},{c:'x',s:'X',f:'lr'},{c:'c',s:'C',f:'lm'},{c:'v',s:'V',f:'li'},{c:'b',s:'B',f:'li'},{c:'n',s:'N',f:'ri'},{c:'m',s:'M',f:'ri'},{c:',',s:'<',f:'rm'},{c:'.',s:'>',f:'rr'},{c:'/',s:'?',f:'rp'},{c:'Shift',s:'',f:'mod',cls:'key-rshift'}],
+  [{c:'Ctrl',s:'',f:'mod',cls:'key-ctrl'},{c:'Win',s:'',f:'mod',cls:'key-bs'},{c:'Alt',s:'',f:'mod',cls:'key-alt'},{c:'',s:'',f:'space',cls:'key-space'},{c:'Alt',s:'',f:'mod',cls:'key-alt'},{c:'Win',s:'',f:'mod',cls:'key-bs'},{c:'Ctrl',s:'',f:'mod',cls:'key-ctrl'}]
+];
+
+let charToKeyEl = {};
+
+function buildKeyboard() {
+  const kb = document.getElementById('keyboard');
+  const indicator = document.getElementById('music-indicator');
+  const kbBg = document.getElementById('kb-bg');
+  kb.innerHTML = '';
+  kb.appendChild(kbBg);
+  kb.appendChild(indicator);
+  charToKeyEl = {};
+  const rows = currentLayout === 'ru' ? RU_ROWS : EN_ROWS;
+  rows.forEach(row => {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'kb-row';
+    row.forEach(key => {
+      const el = document.createElement('div');
+      el.className = 'key finger-' + key.f + (key.cls ? ' ' + key.cls : '');
+      if (key.s && key.f !== 'mod') {
+        el.innerHTML = key.c + '<span class="sub">' + key.s + '</span>';
+      } else {
+        el.textContent = key.c;
+      }
+      el.dataset.char = key.c;
+      el.dataset.shiftChar = key.s || '';
+      if (key.c && key.f !== 'mod' && key.f !== 'space') {
+        charToKeyEl[key.c] = el;
+        if (key.s) charToKeyEl[key.s] = el;
+      }
+      if (key.f === 'space') charToKeyEl[' '] = el;
+      rowEl.appendChild(el);
+    });
+    kb.appendChild(rowEl);
+  });
+  if (!keyboardVisible) kb.classList.add('hidden');
+}
+
+function highlightKey(ch) {
+  document.querySelectorAll('.key.active').forEach(el => el.classList.remove('active'));
+  if (ch && charToKeyEl[ch]) charToKeyEl[ch].classList.add('active');
+}
+
+function flashKeyPress(ch) {
+  const el = charToKeyEl[ch];
+  if (el) { el.classList.add('pressed'); setTimeout(() => el.classList.remove('pressed'), 100); }
+}
+
+// ==================== TYPING ====================
+let lessonText = '';
+let typedCount = 0;
+let errorCount = 0;
+let totalKeystrokes = 0;
+let lessonStarted = false;
+let lessonActive = false;
+let timerInterval = null;
+let startTime = 0;
+let elapsedSeconds = 0;
+let speedBySecond = [];
+let lastTypedAtSecond = 0;
+
+function getLessons() {
+  if (!lessonsData || !lessonsData[currentLayout]) return [];
+  return lessonsData[currentLayout];
+}
+
+function loadLessonByIdx(idx) {
+  const lessons = getLessons();
+  if (idx < 0 || idx >= lessons.length) return;
+  currentLessonIdx = idx;
+  currentLessonData = lessons[idx];
+  loadLesson(currentLessonData);
+}
+
+function loadNextLesson() {
+  const lessons = getLessons();
+  if (currentLessonIdx >= 0 && currentLessonIdx < lessons.length - 1) {
+    loadLessonByIdx(currentLessonIdx + 1);
+  }
+}
+
+function loadPrevLesson() {
+  if (currentLessonIdx > 0) loadLessonByIdx(currentLessonIdx - 1);
+}
+
+function loadLesson(lesson) {
+  if (lessonActive) stopLessonSilent();
+  lessonText = lesson.content;
+  typedCount = 0; errorCount = 0; totalKeystrokes = 0; elapsedSeconds = 0;
+  speedBySecond = []; lastTypedAtSecond = 0;
+  lessonStarted = false; lessonActive = true; lessonPaused = false;
+  document.getElementById('lesson-name').textContent = lesson.title;
+  document.getElementById('welcome-screen').style.display = 'none';
+  document.getElementById('pause-overlay').classList.remove('show');
+  document.getElementById('stat-time').textContent = '00:00';
+  document.getElementById('stat-speed').textContent = '0';
+  document.getElementById('stat-errors').textContent = '0';
+  applyFontSize();
+  updateTextDisplay();
+  highlightKey(lessonText[0]);
+  if (timerInterval) clearInterval(timerInterval);
+}
+
+function applyFontSize() {
+  const td = document.getElementById('text-display');
+  td.style.fontSize = fontSize + 'px';
+  td.style.height = (fontSize * 1.7) + 'px';
+  updateFontMenuMarks();
+}
+
+function updateFontMenuMarks() {
+  document.getElementById('btn-font-small').textContent = (fontSize === 18 ? '\u2713 ' : '   ') + 'Мелкий';
+  document.getElementById('btn-font-medium').textContent = (fontSize === 24 ? '\u2713 ' : '   ') + 'Средний';
+  document.getElementById('btn-font-large').textContent = (fontSize === 30 ? '\u2713 ' : '   ') + 'Крупный';
+}
+
+function updateTextDisplay() {
+  const typed = lessonText.substring(0, typedCount);
+  const current = lessonText[typedCount] || '';
+  const remaining = lessonText.substring(typedCount + 1);
+  const w = Math.floor(700 / (fontSize * 0.6)); // adaptive width based on font
+  document.getElementById('typed-text').textContent = typed.length > w ? '\u2026' + typed.slice(-w) : typed;
+  document.getElementById('current-char').textContent = current === ' ' ? '\u2423' : current;
+  document.getElementById('remaining-text').textContent = remaining.length > w ? remaining.slice(0, w) + '\u2026' : remaining;
+}
+
+function startTimer() {
+  startTime = Date.now();
+  timerInterval = setInterval(() => {
+    elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+    const m = String(Math.floor(elapsedSeconds / 60)).padStart(2, '0');
+    const s = String(elapsedSeconds % 60).padStart(2, '0');
+    document.getElementById('stat-time').textContent = m + ':' + s;
+    // Track per-second speed
+    const currentSpeed = typedCount - lastTypedAtSecond;
+    speedBySecond.push(currentSpeed * 60); // as chars/min
+    lastTypedAtSecond = typedCount;
+    if (elapsedSeconds > 0) document.getElementById('stat-speed').textContent = Math.round(typedCount / elapsedSeconds * 60);
+  }, 1000);
+}
+
+function drawResultsGraph() {
+  const canvas = document.getElementById('results-graph');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  if (speedBySecond.length < 2) {
+    ctx.fillStyle = '#888'; ctx.font = '10px Tahoma'; ctx.textAlign = 'center';
+    ctx.fillText('Мало данных', w/2, h/2);
+    return;
+  }
+
+  const maxSpd = Math.max(...speedBySecond, 30);
+  const pad = { top: 8, bottom: 14, left: 30, right: 5 };
+  const gw = w - pad.left - pad.right;
+  const gh = h - pad.top - pad.bottom;
+
+  // Grid
+  ctx.strokeStyle = '#e0e0e0'; ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 3; i++) {
+    const y = pad.top + gh * i / 3;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y); ctx.stroke();
+    ctx.fillStyle = '#999'; ctx.font = '8px Tahoma'; ctx.textAlign = 'right';
+    ctx.fillText(Math.round(maxSpd * (3-i) / 3), pad.left - 3, y + 3);
+  }
+
+  // Speed bars
+  const barW = Math.max(1, gw / speedBySecond.length - 1);
+  speedBySecond.forEach((spd, i) => {
+    const x = pad.left + (gw * i / speedBySecond.length);
+    const bh = (spd / maxSpd) * gh;
+    ctx.fillStyle = spd > 0 ? '#228B22' : '#cc0000';
+    ctx.fillRect(x, pad.top + gh - bh, barW, bh);
+  });
+
+  // Average line
+  const avg = speedBySecond.reduce((a,b) => a+b, 0) / speedBySecond.length;
+  const avgY = pad.top + gh - (avg / maxSpd * gh);
+  ctx.strokeStyle = '#cc0000'; ctx.lineWidth = 1; ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(pad.left, avgY); ctx.lineTo(w - pad.right, avgY); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#cc0000'; ctx.font = '7px Tahoma'; ctx.textAlign = 'left';
+  ctx.fillText('avg ' + Math.round(avg), pad.left + 2, avgY - 2);
+}
+
+function endLesson() {
+  lessonActive = false; lessonPaused = false;
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = null;
+  stopTypingMusic();
+  document.getElementById('pause-overlay').classList.remove('show');
+
+  const speed = elapsedSeconds > 0 ? Math.round(typedCount / elapsedSeconds * 60) : 0;
+  const acc = totalKeystrokes > 0 ? Math.round((totalKeystrokes - errorCount) / totalKeystrokes * 100) : 100;
+  const m = String(Math.floor(elapsedSeconds / 60)).padStart(2, '0');
+  const s = String(elapsedSeconds % 60).padStart(2, '0');
+
+  // Tendency: compare with last session
+  const stats = getStats();
+  let tendencyText = '\u2014';
+  if (stats.length > 0) {
+    const lastSpeed = stats[stats.length - 1].speed;
+    const diff = speed - lastSpeed;
+    if (diff > 0) tendencyText = '\u2191 +' + diff + ' зн/мин';
+    else if (diff < 0) tendencyText = '\u2193 ' + diff + ' зн/мин';
+    else tendencyText = '\u2192 без изменений';
+  }
+
+  document.getElementById('res-speed').textContent = speed + ' зн/мин';
+  document.getElementById('res-tendency').textContent = tendencyText;
+  document.getElementById('res-right').textContent = typedCount;
+  document.getElementById('res-errors').textContent = errorCount;
+  document.getElementById('res-time').textContent = m + ':' + s;
+  document.getElementById('res-accuracy').textContent = acc + '%';
+
+  drawResultsGraph();
+
+  document.getElementById('results-overlay').classList.add('show');
+
+  // Sound
+  if (errorCount / Math.max(1, totalKeystrokes) < 0.05) playSound('Good');
+  else playSound('Bad');
+
+  // Save stats locally
+  const sessionData = {
+    lesson: currentLessonData ? currentLessonData.title : '?',
+    layout: currentLayout,
+    speed, errors: errorCount, total: totalKeystrokes, accuracy: acc, time: elapsedSeconds,
+    speedBySecond
+  };
+  saveSessionStats(sessionData);
+
+  // Save to server if logged in
+  apiSaveSession(sessionData);
+
+  setTimeout(() => startMenuMusic(), 2000);
+}
+
+function stopLessonSilent() {
+  lessonActive = false; lessonStarted = false; lessonPaused = false;
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = null;
+  stopTypingMusic();
+  document.getElementById('pause-overlay').classList.remove('show');
+}
+
+function stopLesson() {
+  stopLessonSilent();
+  document.getElementById('welcome-screen').style.display = 'flex';
+  document.getElementById('lesson-name').textContent = 'Выберите урок';
+  highlightKey(null);
+  playSound('Bye');
+  startMenuMusic();
+}
+
+// ==================== KEYBOARD TOGGLE ====================
+function toggleKeyboard() {
+  keyboardVisible = !keyboardVisible;
+  document.getElementById('keyboard').classList.toggle('hidden', !keyboardVisible);
+  document.getElementById('btn-toggle-keyboard').innerHTML = '&#9000; Клавиатура: ' + (keyboardVisible ? 'ВКЛ' : 'ВЫКЛ') + '<span class="shortcut">F2</span>';
+  saveSettings();
+}
+
+// ==================== PAUSE ====================
+function pauseLesson() {
+  if (!lessonActive || !lessonStarted || lessonPaused) return;
+  lessonPaused = true;
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = null;
+  document.getElementById('pause-overlay').classList.add('show');
+  if (typingMusicPlayer) typingMusicPlayer.pause();
+}
+
+function resumeLesson() {
+  if (!lessonPaused) return;
+  lessonPaused = false;
+  document.getElementById('pause-overlay').classList.remove('show');
+  const alreadyElapsed = elapsedSeconds;
+  startTime = Date.now() - alreadyElapsed * 1000;
+  lastTypedAtSecond = typedCount;
+  timerInterval = setInterval(() => {
+    elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+    const m = String(Math.floor(elapsedSeconds / 60)).padStart(2, '0');
+    const s = String(elapsedSeconds % 60).padStart(2, '0');
+    document.getElementById('stat-time').textContent = m + ':' + s;
+    const currentSpeed = typedCount - lastTypedAtSecond;
+    speedBySecond.push(currentSpeed * 60);
+    lastTypedAtSecond = typedCount;
+    if (elapsedSeconds > 0) document.getElementById('stat-speed').textContent = Math.round(typedCount / elapsedSeconds * 60);
+  }, 1000);
+  if (typingMusicPlayer && musicEnabled) typingMusicPlayer.play().catch(() => {});
+}
+
+// ==================== INPUT ====================
+document.addEventListener('keydown', (e) => {
+  // Global hotkeys
+  if (e.key === 'F2') { e.preventDefault(); toggleKeyboard(); return; }
+
+  // Close overlays with Enter/Esc
+  if (document.getElementById('results-overlay').classList.contains('show')) {
+    if (e.key === 'Enter' || e.key === 'Escape') {
+      e.preventDefault();
+      document.getElementById('results-overlay').classList.remove('show');
+      document.getElementById('welcome-screen').style.display = 'flex';
+      highlightKey(null);
+    }
+    return;
+  }
+  if (document.getElementById('stats-overlay').classList.contains('show')) {
+    if (e.key === 'Escape' || e.key === 'Enter') {
+      e.preventDefault();
+      document.getElementById('stats-overlay').classList.remove('show');
+    }
+    return;
+  }
+  if (document.getElementById('leaderboard-overlay').classList.contains('show')) {
+    if (e.key === 'Escape' || e.key === 'Enter') {
+      e.preventDefault();
+      document.getElementById('leaderboard-overlay').classList.remove('show');
+    }
+    return;
+  }
+
+  // Lesson navigation when no lesson active
+  if (!lessonActive) {
+    if (e.key === 'PageDown') { e.preventDefault(); loadNextLesson(); return; }
+    if (e.key === 'PageUp') { e.preventDefault(); loadPrevLesson(); return; }
+    return;
+  }
+
+  // Handle paused state
+  if (lessonPaused) {
+    if (['Shift','Control','Alt','Meta','CapsLock','Tab'].includes(e.key)) return;
+    e.preventDefault();
+    if (e.key === 'Escape') {
+      lessonPaused = false;
+      document.getElementById('pause-overlay').classList.remove('show');
+      stopLesson();
+      return;
+    }
+    resumeLesson();
+    return;
+  }
+
+  if (['Shift','Control','Alt','Meta','CapsLock','Tab'].includes(e.key)) return;
+  e.preventDefault();
+
+  // Navigation during lesson (before started)
+  if (e.key === 'PageDown') { loadNextLesson(); return; }
+  if (e.key === 'PageUp') { loadPrevLesson(); return; }
+
+  // First Esc = pause
+  if (e.key === 'Escape') {
+    if (lessonStarted) pauseLesson();
+    else stopLesson();
+    return;
+  }
+
+  const expected = lessonText[typedCount];
+  let typed = e.key;
+
+  if (!lessonStarted) {
+    lessonStarted = true;
+    startTimer();
+    playSound('Start');
+    startTypingMusic();
+  }
+  totalKeystrokes++;
+
+  if (typed === expected) {
+    flashKeyPress(expected);
+    typedCount++;
+    updateTextDisplay();
+    if (typedCount >= lessonText.length) { endLesson(); return; }
+    highlightKey(lessonText[typedCount]);
+  } else {
+    errorCount++;
+    document.getElementById('stat-errors').textContent = errorCount;
+    const tc = document.getElementById('text-container');
+    tc.classList.add('error-flash');
+    setTimeout(() => tc.classList.remove('error-flash'), 200);
+    playErrorSound();
+  }
+});
+
+// ==================== MENUS ====================
+function buildLessonMenu() {
+  const dd = document.getElementById('lesson-dropdown');
+  dd.innerHTML = '';
+  const lessons = getLessons();
+  if (!lessons.length) return;
+  const groups = {};
+  lessons.forEach((l, i) => {
+    const g = l.group || 'Уроки';
+    if (!groups[g]) groups[g] = [];
+    groups[g].push({ ...l, idx: i });
+  });
+  Object.keys(groups).forEach(g => {
+    const t = document.createElement('div');
+    t.className = 'group-title'; t.textContent = g;
+    dd.appendChild(t);
+    groups[g].forEach(l => {
+      const it = document.createElement('div');
+      it.className = 'lesson-item';
+      it.textContent = (l.idx === currentLessonIdx ? '\u25B6 ' : '   ') + l.title;
+      it.onclick = (ev) => { ev.stopPropagation(); closeAll(); loadLessonByIdx(l.idx); };
+      dd.appendChild(it);
+    });
+  });
+}
+
+function buildLayoutMenu() {
+  const dd = document.getElementById('layout-dropdown');
+  dd.innerHTML = '';
+  [{k:'ru',l:'Русский (ЙЦУКЕН)'},{k:'en',l:'English (QWERTY)'}].forEach(x => {
+    const it = document.createElement('div');
+    it.className = 'lesson-item';
+    it.textContent = (x.k === currentLayout ? '\u2713 ' : '   ') + x.l;
+    it.onclick = (ev) => {
+      ev.stopPropagation(); closeAll();
+      currentLayout = x.k; currentLessonIdx = -1;
+      buildKeyboard(); buildLessonMenu(); buildLayoutMenu();
+      stopLesson(); saveSettings();
+    };
+    dd.appendChild(it);
+  });
+}
+
+function buildSkinMenu() {
+  const dd = document.getElementById('skin-dropdown');
+  dd.innerHTML = '';
+  SKINS.forEach((s, i) => {
+    const it = document.createElement('div');
+    it.className = 'skin-item' + (i === currentSkin ? ' active-skin' : '');
+    it.textContent = s.name;
+    it.onclick = (ev) => { ev.stopPropagation(); closeAll(); applySkin(i); };
+    dd.appendChild(it);
+  });
+}
+
+function closeAll() {
+  document.querySelectorAll('.dropdown').forEach(d => d.style.display = 'none');
+}
+
+function toggleDD(id) {
+  const dd = document.getElementById(id);
+  const vis = dd.style.display === 'block';
+  closeAll();
+  if (!vis) dd.style.display = 'block';
+}
+
+// ==================== EVENT WIRING ====================
+document.getElementById('btn-lessons').onclick = () => { buildLessonMenu(); toggleDD('lesson-dropdown'); };
+document.getElementById('btn-layout').onclick = () => toggleDD('layout-dropdown');
+document.getElementById('btn-skins').onclick = () => toggleDD('skin-dropdown');
+document.getElementById('btn-options').onclick = () => toggleDD('options-dropdown');
+document.getElementById('btn-help').onclick = () => toggleDD('help-dropdown');
+document.getElementById('btn-stop').onclick = () => { closeAll(); stopLesson(); };
+document.getElementById('btn-progress').onclick = () => { closeAll(); if (currentUser) showServerStats(); else showStats(); };
+
+document.getElementById('btn-close-results').onclick = () => {
+  document.getElementById('results-overlay').classList.remove('show');
+  document.getElementById('welcome-screen').style.display = 'flex';
+  highlightKey(null);
+};
+document.getElementById('btn-next-lesson').onclick = () => {
+  document.getElementById('results-overlay').classList.remove('show');
+  loadNextLesson();
+};
+document.getElementById('btn-close-stats').onclick = () => {
+  document.getElementById('stats-overlay').classList.remove('show');
+};
+document.getElementById('btn-clear-stats').onclick = () => clearStats();
+
+document.getElementById('volume-slider').oninput = (e) => { soundVolume = e.target.value / 100; saveSettings(); };
+document.getElementById('music-volume-slider').oninput = (e) => {
+  musicVolume = e.target.value / 100;
+  if (menuMusicPlayer) menuMusicPlayer.volume = musicVolume;
+  if (typingMusicPlayer) typingMusicPlayer.volume = musicVolume;
+  saveSettings();
+};
+document.getElementById('btn-toggle-music').onclick = (e) => { e.stopPropagation(); toggleMusic(); };
+document.getElementById('btn-toggle-keyboard').onclick = (e) => { e.stopPropagation(); toggleKeyboard(); };
+document.getElementById('btn-toggle-censor').onclick = (e) => {
+  e.stopPropagation();
+  censorSounds = !censorSounds;
+  e.target.textContent = '\uD83D\uDE48 Цензура: ' + (censorSounds ? 'ВКЛ' : 'ВЫКЛ');
+  saveSettings();
+};
+
+document.getElementById('btn-font-small').onclick = (e) => { e.stopPropagation(); fontSize = 18; applyFontSize(); saveSettings(); };
+document.getElementById('btn-font-medium').onclick = (e) => { e.stopPropagation(); fontSize = 24; applyFontSize(); saveSettings(); };
+document.getElementById('btn-font-large').onclick = (e) => { e.stopPropagation(); fontSize = 30; applyFontSize(); saveSettings(); };
+
+document.getElementById('music-indicator').onclick = () => toggleMusic();
+document.getElementById('btn-leaderboard').onclick = () => { closeAll(); showLeaderboard(); };
+document.getElementById('btn-close-leaderboard').onclick = () => { document.getElementById('leaderboard-overlay').classList.remove('show'); };
+
+// Login buttons
+document.getElementById('btn-guest-login').onclick = () => apiGuestLogin();
+document.getElementById('guest-nickname').addEventListener('keydown', (e) => { if (e.key === 'Enter') apiGuestLogin(); });
+document.getElementById('btn-tg-login').onclick = () => apiTgLogin();
+document.getElementById('btn-google-login').onclick = () => apiGoogleLogin();
+document.getElementById('btn-skip-login').onclick = () => skipLogin();
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.menu-item')) closeAll();
+});
+
+// ==================== MULTI-USER API ====================
+let currentUser = null;
+
+async function api(method, url, body) {
+  const opts = { method, headers: {}, credentials: 'same-origin' };
+  if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  const r = await fetch(url, opts);
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.error || 'API error');
+  return data;
+}
+
+async function checkAuth() {
+  try {
+    const data = await api('GET', '/api/auth/me');
+    if (data.user) { currentUser = data.user; updateUserBar(); }
+    else showLogin();
+  } catch { showLogin(); }
+}
+
+function showLogin() {
+  document.getElementById('login-overlay').classList.add('show');
+  document.getElementById('guest-nickname').focus();
+}
+
+function hideLogin() {
+  document.getElementById('login-overlay').classList.remove('show');
+}
+
+function updateUserBar() {
+  const bar = document.getElementById('user-bar');
+  const nameEl = document.getElementById('user-name');
+  const avatarEl = document.getElementById('user-avatar');
+  if (currentUser) {
+    nameEl.textContent = currentUser.nickname;
+    // SECURITY FIX: Only set avatar src for https: URLs to prevent javascript: or data: URI attacks
+    if (currentUser.avatar_url && currentUser.avatar_url.startsWith('https://')) {
+      avatarEl.src = currentUser.avatar_url;
+      avatarEl.style.display = '';
+    } else {
+      avatarEl.src = '';
+      avatarEl.style.display = 'none';
+    }
+    bar.style.display = 'flex';
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+async function apiGuestLogin() {
+  const nick = document.getElementById('guest-nickname').value.trim();
+  if (!nick) { document.getElementById('guest-nickname').focus(); return; }
+  try {
+    const data = await api('POST', '/api/auth/guest', { nickname: nick });
+    currentUser = data.user;
+    updateUserBar();
+    hideLogin();
+  } catch(e) { alert(e.message); }
+}
+
+async function apiTgLogin() {
+  // Telegram Login Widget opens a popup
+  if (!window.TelegramLoginData) {
+    alert('Telegram Login не настроен на сервере');
+    return;
+  }
+  // This gets handled by the Telegram widget callback
+}
+
+function onTelegramAuth(tgUser) {
+  api('POST', '/api/auth/telegram', tgUser).then(data => {
+    currentUser = data.user;
+    updateUserBar();
+    hideLogin();
+  }).catch(e => alert('Telegram auth failed: ' + e.message));
+}
+
+async function apiGoogleLogin() {
+  alert('Google Login не настроен на сервере');
+}
+
+async function apiLogout() {
+  try { await api('POST', '/api/auth/logout'); } catch {}
+  currentUser = null;
+  updateUserBar();
+  showLogin();
+}
+
+function skipLogin() {
+  currentUser = null;
+  hideLogin();
+  document.getElementById('user-bar').style.display = 'none';
+}
+
+async function apiSaveSession(sessionData) {
+  if (!currentUser) return;
+  try {
+    await api('POST', '/api/stats/session', {
+      lesson: sessionData.lesson,
+      layout: sessionData.layout,
+      speed: sessionData.speed,
+      errors: sessionData.errors,
+      total_keys: sessionData.total,
+      accuracy: sessionData.accuracy,
+      time_seconds: sessionData.time
+    });
+  } catch {}
+}
+
+async function showLeaderboard() {
+  try {
+    const data = await api('GET', '/api/stats/leaderboard');
+    const tbody = document.getElementById('lb-tbody');
+    tbody.innerHTML = '';
+    (data.leaderboard || []).forEach((p, i) => {
+      const tr = document.createElement('tr');
+      if (i === 0) tr.className = 'rank-1';
+      else if (i === 1) tr.className = 'rank-2';
+      else if (i === 2) tr.className = 'rank-3';
+      tr.innerHTML = `<td>${i+1}</td><td>${escHtml(p.nickname)}</td><td>${p.best_speed}</td><td>${p.avg_speed}</td><td>${p.sessions}</td>`;
+      tbody.appendChild(tr);
+    });
+    if (!data.leaderboard || !data.leaderboard.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#888;padding:10px">Пока нет результатов</td></tr>';
+    }
+    document.getElementById('leaderboard-overlay').classList.add('show');
+  } catch(e) {
+    alert('Не удалось загрузить рейтинг');
+  }
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+async function showServerStats() {
+  if (!currentUser) { showStats(); return; }
+  try {
+    const data = await api('GET', '/api/stats/me');
+    const summary = document.getElementById('stats-summary');
+    const tbody = document.getElementById('stats-tbody');
+    const s = data.summary || {};
+    const tm = Math.floor((s.total_time || 0) / 60);
+    const ts = (s.total_time || 0) % 60;
+
+    summary.innerHTML = `
+      <div class="label">Занятий:</div><div class="value">${s.total_sessions || 0}</div>
+      <div class="label">Общее время:</div><div class="value">${tm} мин ${ts} сек</div>
+      <div class="label">Символов набрано:</div><div class="value">${s.total_keys || 0}</div>
+      <div class="label">Средняя скорость:</div><div class="value">${s.avg_speed || 0} зн/мин</div>
+      <div class="label">Лучшая скорость:</div><div class="value">${s.best_speed || 0} зн/мин</div>
+      <div class="label">Средняя точность:</div><div class="value">${s.avg_accuracy || 0}%</div>
+    `;
+
+    tbody.innerHTML = '';
+    const sessions = data.sessions || [];
+    sessions.forEach(sess => {
+      const d = new Date(sess.created_at + 'Z');
+      const dateStr = d.toLocaleDateString('ru-RU') + ' ' + d.toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'});
+      const m = String(Math.floor(sess.time_seconds / 60)).padStart(2, '0');
+      const sec = String(sess.time_seconds % 60).padStart(2, '0');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${dateStr}</td><td>${escHtml(sess.lesson||'—')}</td><td>${sess.speed}</td><td>${sess.errors}</td><td>${sess.accuracy}%</td><td>${m}:${sec}</td>`;
+      tbody.appendChild(tr);
+    });
+
+    // Graph from server sessions (convert to local format)
+    const statsForGraph = sessions.slice().reverse().map(sess => ({ speed: sess.speed }));
+    drawStatsGraph(statsForGraph);
+
+    document.getElementById('stats-overlay').classList.add('show');
+  } catch {
+    // Fallback to local stats
+    showStats();
+  }
+}
+
+// ==================== INIT ====================
+async function init() {
+  loadSettings();
+  buildKeyboard();
+  applySkin(currentSkin);
+  document.getElementById('kb-bg').style.backgroundImage = 'url("skins/Keyboard/black_alt.jpg")';
+
+  // Apply loaded settings to UI
+  document.getElementById('volume-slider').value = soundVolume * 100;
+  document.getElementById('music-volume-slider').value = musicVolume * 100;
+  document.getElementById('btn-toggle-music').textContent = '\u266A Музыка: ' + (musicEnabled ? 'ВКЛ' : 'ВЫКЛ');
+  document.getElementById('btn-toggle-censor').textContent = '\uD83D\uDE48 Цензура: ' + (censorSounds ? 'ВКЛ' : 'ВЫКЛ');
+  document.getElementById('btn-toggle-keyboard').innerHTML = '&#9000; Клавиатура: ' + (keyboardVisible ? 'ВКЛ' : 'ВЫКЛ') + '<span class="shortcut">F2</span>';
+  applyFontSize();
+
+  try {
+    const r = await fetch('lessons.json');
+    lessonsData = await r.json();
+  } catch(e) {
+    lessonsData = {
+      ru: [{ title: 'Тест', content: 'привет мир это тестовый урок для стамины', group: 'Тест' }],
+      en: [{ title: 'Test', content: 'the quick brown fox jumps over the lazy dog', group: 'Test' }]
+    };
+  }
+  buildLessonMenu();
+  buildLayoutMenu();
+  buildSkinMenu();
+
+  // Check auth (show login or user bar)
+  checkAuth();
+
+  // Start menu music after first user click (browser autoplay policy)
+  document.addEventListener('click', function first() {
+    playSound('Hello');
+    setTimeout(() => startMenuMusic(), 1500);
+    document.removeEventListener('click', first);
+  }, { once: true });
+}
+
+init();
+</script>
+</body>
+</html>

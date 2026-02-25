@@ -1,0 +1,19 @@
+{
+  "name": "stamina-web",
+  "version": "1.0.0",
+  "description": "Stamina typing trainer - web version with multi-user support",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.0",
+    "jsonwebtoken": "^9.0.2",
+    "sql.js": "^1.11.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

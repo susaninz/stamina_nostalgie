@@ -1,0 +1,7 @@
+node_modules/
+db/
+.env
+sounds
+skins
+music
+menu_sounds
