@@ -298,17 +298,17 @@ body {
   filter: brightness(0.6);
 }
 
-/* Finger colors - vivid like original */
-.finger-lp { background: #cc2244; color: #fff; }
-.finger-lr { background: #dd7722; color: #fff; }
-.finger-lm { background: #ccaa00; color: #000; }
-.finger-li { background: #22aa55; color: #fff; }
-.finger-ri { background: #2299aa; color: #fff; }
-.finger-rm { background: #3366cc; color: #fff; }
-.finger-rr { background: #dd7722; color: #fff; }
-.finger-rp { background: #cc2244; color: #fff; }
-.finger-mod { background: #333; color: #888; border-color: rgba(255,255,255,0.08); }
-.finger-space { background: #444; color: #aaa; }
+/* Finger colors - pastel like original Stamina */
+.finger-lp { background: #b0bfc5; color: #3a4a50; }
+.finger-lr { background: #ffc385; color: #5a3a10; }
+.finger-lm { background: #f7e991; color: #4a4010; }
+.finger-li { background: #c7ef97; color: #2a4a10; }
+.finger-ri { background: #c7ef97; color: #2a4a10; }
+.finger-rm { background: #81d2f7; color: #1a3a5a; }
+.finger-rr { background: #ffc385; color: #5a3a10; }
+.finger-rp { background: #b0bfc5; color: #3a4a50; }
+.finger-mod { background: #555; color: #aaa; border-color: rgba(255,255,255,0.08); }
+.finger-space { background: #93d8d8; color: #2a4a4a; }
 
 .key-backspace { width: 70px; font-size: 9px; }
 .key-tab { width: 58px; font-size: 9px; }
@@ -852,9 +852,13 @@ body {
     </div>
     <div class="sep-line"></div>
     <div class="or-text">или войдите через:</div>
-    <div class="login-row">
-      <button id="btn-tg-login" style="background:#0088cc;color:#fff;border-color:#006699">Telegram</button>
-      <button id="btn-google-login" style="background:#fff;color:#333;border-color:#ddd">Google</button>
+    <div class="login-row" id="tg-widget-row">
+      <script async src="https://telegram.org/js/telegram-widget.js?22"
+        data-telegram-login="staminakeyboardbot"
+        data-size="medium"
+        data-radius="4"
+        data-onauth="onTelegramAuth(user)"
+        data-request-access="write"></script>
     </div>
     <div class="skip-link" id="btn-skip-login">Продолжить как гость (без сохранения)</div>
   </div>
@@ -1326,10 +1330,12 @@ function updateTextDisplay() {
   const typed = lessonText.substring(0, typedCount);
   const current = lessonText[typedCount] || '';
   const remaining = lessonText.substring(typedCount + 1);
-  const w = Math.floor(700 / (fontSize * 0.6)); // adaptive width based on font
-  document.getElementById('typed-text').textContent = typed.length > w ? '\u2026' + typed.slice(-w) : typed;
-  document.getElementById('current-char').textContent = current === ' ' ? '\u2423' : current;
-  document.getElementById('remaining-text').textContent = remaining.length > w ? remaining.slice(0, w) + '\u2026' : remaining;
+  const totalW = Math.floor(700 / (fontSize * 0.6));
+  const typedW = Math.min(typed.length, Math.floor(totalW * 0.35));
+  const remainW = totalW - typedW;
+  document.getElementById('typed-text').textContent = typed.length > typedW ? '\u2026' + typed.slice(-typedW) : typed;
+  document.getElementById('current-char').textContent = current;
+  document.getElementById('remaining-text').textContent = remaining.length > remainW ? remaining.slice(0, remainW) + '\u2026' : remaining;
 }
 
 function startTimer() {
@@ -1715,8 +1721,7 @@ document.getElementById('btn-close-leaderboard').onclick = () => { document.getE
 // Login buttons
 document.getElementById('btn-guest-login').onclick = () => apiGuestLogin();
 document.getElementById('guest-nickname').addEventListener('keydown', (e) => { if (e.key === 'Enter') apiGuestLogin(); });
-document.getElementById('btn-tg-login').onclick = () => apiTgLogin();
-document.getElementById('btn-google-login').onclick = () => apiGoogleLogin();
+// Telegram Login handled by widget callback (onTelegramAuth)
 document.getElementById('btn-skip-login').onclick = () => skipLogin();
 
 // Bug report buttons

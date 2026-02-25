@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const initSqlJs = require('sql.js');
 const crypto = require('crypto');
